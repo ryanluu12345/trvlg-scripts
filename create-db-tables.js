@@ -1,7 +1,6 @@
 require("dotenv").config();
 const { Pool } = require("pg");
 const { seedDb } = require("./seed-db");
-const tableNames = require("../constants/database-table-names");
 
 const pool = new Pool({
   user:
@@ -33,7 +32,7 @@ const createCustomTypesString = `
 `;
 
 const createAccountTableString = `
-  CREATE TABLE ${tableNames.userTable}
+  CREATE TABLE account
     (user_id serial PRIMARY KEY,
     user_uid TEXT NOT NULL,
     username VARCHAR (50) UNIQUE NOT NULL,
@@ -45,7 +44,7 @@ const createAccountTableString = `
     updated_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_login TIMESTAMP);`;
 const createLocationTableString = `
-  CREATE TABLE ${tableNames.locationTable}
+  CREATE TABLE location
     (location_id serial PRIMARY KEY,
     location_uid TEXT NOT NULL,
     city VARCHAR(100) NOT NULL,
@@ -57,7 +56,7 @@ const createLocationTableString = `
     lat NUMERIC(8, 4)  NOT NULL,
     lng NUMERIC(8, 4) NOT NULL);`;
 const createItineraryTableString = `
-  CREATE TABLE ${tableNames.itineraryTable}
+  CREATE TABLE itinerary
     (itinerary_id serial PRIMARY KEY,
     itinerary_uid TEXT NOT NULL,
     user_id INTEGER REFERENCES account(user_id),
@@ -75,7 +74,7 @@ const createItineraryTableString = `
     created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP);`;
 const createCommentTableString = `
-  CREATE TABLE ${tableNames.commentTable}
+  CREATE TABLE comment
     (comment_id serial PRIMARY KEY,
     comment_uid TEXT NOT NULL,
     user_id INTEGER REFERENCES account(user_id),
@@ -86,7 +85,7 @@ const createCommentTableString = `
     created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP);`;
 const createProfileTableString = `
-  CREATE TABLE ${tableNames.profileTable}
+  CREATE TABLE profile
     (profile_id serial PRIMARY KEY,
     user_id INTEGER REFERENCES account(user_id) UNIQUE,
     name VARCHAR (50) NOT NULL,
@@ -102,13 +101,13 @@ const createTriggerFunction = `
     return NEW; END ;$$ language 'plpgsql';`;
 const setTriggerOnTable = `
   CREATE TRIGGER update_comment_change_timestamp
-  BEFORE UPDATE ON ${tableNames.commentTable}
+  BEFORE UPDATE ON comment
   FOR EACH ROW EXECUTE PROCEDURE update_timestamp();`;
 const createLikeFavoriteItineraryTable = `
-  CREATE TABLE ${tableNames.likedItineraryTable}
+  CREATE TABLE liked_itinerary
     (
-      user_id INTEGER REFERENCES ${tableNames.userTable}(user_id),
-      itinerary_id INTEGER REFERENCES ${tableNames.itineraryTable}(itinerary_id),
+      user_id INTEGER REFERENCES account(user_id),
+      itinerary_id INTEGER REFERENCES itinerary(itinerary_id),
       is_favorite BOOLEAN DEFAULT FALSE,
       is_liked BOOLEAN DEFAULT FALSE,
       created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -129,7 +128,7 @@ const createLikeItineraryUpdateTriggerFunction = `
     return NEW; END ;$$ language 'plpgsql';`;
 const setLikeItineraryUpdateTriggerOnTable = `
   CREATE TRIGGER update_comment_change_timestamp
-  BEFORE UPDATE ON ${tableNames.likedItineraryTable}
+  BEFORE UPDATE ON liked_itinerary
   FOR EACH ROW EXECUTE PROCEDURE update_liked_itinerary_timestamp();`;
 const createModifiedColumnTriggerFunction = `
   CREATE OR REPLACE FUNCTION update_generic_modified_column()
@@ -145,11 +144,11 @@ const createModifiedColumnTriggerFunction = `
   $$ language 'plpgsql';`;
 const setItineraryUpdateTriggerOnTable = `
   CREATE TRIGGER update_itinerary_change_timestamp
-  BEFORE UPDATE ON ${tableNames.itineraryTable}
+  BEFORE UPDATE ON itinerary
   FOR EACH ROW EXECUTE PROCEDURE update_generic_modified_column();`;
 
 const createTagsTable = `
-CREATE TABLE ${tableNames.tagTable}
+CREATE TABLE tag
   (tag_id serial PRIMARY KEY,
   tag_name VARCHAR(300) NOT NULL,
   created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -158,10 +157,10 @@ CREATE TABLE ${tableNames.tagTable}
 `;
 
 const createTagsItineraryTable = `
-  CREATE TABLE ${tableNames.tagItineraryTable}
+  CREATE TABLE tag_itinerary
   (
-    tag_id INTEGER REFERENCES ${tableNames.tagTable}(tag_id),
-    itinerary_id INTEGER REFERENCES ${tableNames.itineraryTable}(itinerary_id),
+    tag_id INTEGER REFERENCES tag(tag_id),
+    itinerary_id INTEGER REFERENCES itinerary(itinerary_id),
     created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(tag_id, itinerary_id)
@@ -169,24 +168,24 @@ const createTagsItineraryTable = `
 `;
 
 const createTagsFollowersTable = `
-  CREATE TABLE ${tableNames.tagFollowTable}
+  CREATE TABLE tag_follower
   (
-    user_id INTEGER REFERENCES ${tableNames.userTable}(user_id),
-    tag_id INTEGER REFERENCES ${tableNames.tagTable}(tag_id),
+    user_id INTEGER REFERENCES account(user_id),
+    tag_id INTEGER REFERENCES tag(tag_id),
     created_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY(user_id, tag_id)
   );
 `;
 const createFollowerTable = `
-  CREATE TABLE ${tableNames.followerTable}
+  CREATE TABLE follower
     (follower INTEGER REFERENCES profile(profile_id),
      following INTEGER REFERENCES profile(profile_id),
      accepted BOOLEAN DEFAULT FALSE,
      followed_on TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`;
 
 const createItineraryIndexTable = `
-    CREATE TABLE ${tableNames.itineraryIndexTable}
+    CREATE TABLE itinerary_index
     (
       itinerary_id INTEGER REFERENCES itinerary(itinerary_id) UNIQUE, 
       elasticsearch_id TEXT NOT NULL DEFAULT '',
@@ -196,25 +195,25 @@ const createItineraryIndexTable = `
 
 const dropAllTables = async () => {
   await pool.query(
-    `DROP TABLE IF EXISTS ${tableNames.itineraryTable} CASCADE;`
+    `DROP TABLE IF EXISTS itinerary CASCADE;`
   );
-  await pool.query(`DROP TABLE IF EXISTS ${tableNames.locationTable} CASCADE;`);
-  await pool.query(`DROP TABLE IF EXISTS ${tableNames.userTable} CASCADE;`);
-  await pool.query(`DROP TABLE IF EXISTS ${tableNames.commentTable} CASCADE;`);
+  await pool.query(`DROP TABLE IF EXISTS location CASCADE;`);
+  await pool.query(`DROP TABLE IF EXISTS account CASCADE;`);
+  await pool.query(`DROP TABLE IF EXISTS comment CASCADE;`);
   await pool.query(
-    `DROP TABLE IF EXISTS ${tableNames.likedItineraryTable} CASCADE;`
+    `DROP TABLE IF EXISTS liked_itinerary CASCADE;`
   );
-  await pool.query(`DROP TABLE IF EXISTS ${tableNames.profileTable} CASCADE;`);
-  await pool.query(`DROP TABLE IF EXISTS ${tableNames.followerTable} CASCADE;`);
-  await pool.query(`DROP TABLE IF EXISTS ${tableNames.tagTable} CASCADE;`);
+  await pool.query(`DROP TABLE IF EXISTS profile CASCADE;`);
+  await pool.query(`DROP TABLE IF EXISTS follower CASCADE;`);
+  await pool.query(`DROP TABLE IF EXISTS tag CASCADE;`);
   await pool.query(
-    `DROP TABLE IF EXISTS ${tableNames.tagFollowTable} CASCADE;`
-  );
-  await pool.query(
-    `DROP TABLE IF EXISTS ${tableNames.tagItineraryTable} CASCADE;`
+    `DROP TABLE IF EXISTS tag_follower CASCADE;`
   );
   await pool.query(
-    `DROP TABLE IF EXISTS ${tableNames.itineraryIndexTable} CASCADE;`
+    `DROP TABLE IF EXISTS tag_itinerary CASCADE;`
+  );
+  await pool.query(
+    `DROP TABLE IF EXISTS itinerary_index CASCADE;`
   );
 };
 
@@ -252,5 +251,6 @@ const main = async () => {
 };
 
 if (process.env.ENVIRONMENT === "dev") {
+  console.log(process.env.DB_USER)
   main();
 }
